@@ -18,7 +18,7 @@ function setup({ token = 'tok', promptResult = null, noXhr = false, respond, hea
     if (opts.url.endsWith('/health')) (health ?? healthy)(opts); else respond(opts);
   };
   const context = vm.createContext(sandbox);
-  vm.runInContext(fs.readFileSync(__dirname + '/lib/mdrop-client.js', 'utf8'), context);
+  vm.runInContext(fs.readFileSync(__dirname + '/../lib/mdrop-client.js', 'utf8'), context);
   return { client: context.MdropClient, store, requests, logs, warns, prompts };
 }
 

@@ -32,7 +32,7 @@ function setup({ custom = false, handler, mdrop = 'ok' } = {}) {
     GM_registerMenuCommand: (_, fn) => { run = fn; },
     console, alert: message => errors.push(message),
   });
-  vm.runInContext(fs.readFileSync('entrypoint.js', 'utf8'), context);
+  vm.runInContext(fs.readFileSync(__dirname + '/../core/entrypoint.js', 'utf8'), context);
   return { run: () => run(), button, errors, sent, timers };
 }
 

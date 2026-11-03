@@ -5,7 +5,7 @@ const vm = require('node:vm');
 
 const context = { window: {}, console, URL };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync(__dirname + '/_.js', 'utf8'), context);
+vm.runInContext(fs.readFileSync(__dirname + '/../core/helpers.js', 'utf8'), context);
 const _ = context.window._;
 
 assert.equal(_.toDomain('https://www.example.com/a?b=1'), 'example.com');

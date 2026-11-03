@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SourceCapsule → Custom Markdown
 // @namespace    local.sourcecapsule-md
-// @version      0.5.8
+// @version      0.6.0
 // @description  Reuse SourceCapsule extraction and save Markdown with custom frontmatter.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -25,11 +25,11 @@
 // @connect      sourcecapsule-share.wolfgang-aura.workers.dev
 // @run-at       document-start
 // @noframes
-// @require      http://127.0.0.1:18080/lib/mdrop-client.js
-// @require      http://127.0.0.1:18080/lib/sourcecapsule-module.js
+// @require      https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/lib/mdrop-client.js?v=0.6.0
+// @require      https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/lib/sourcecapsule-module.js?v=0.6.0
 // @require      https://raw.githubusercontent.com/wolfgang-aura/SourceCapsule/3738b57c43ab7eef898086a9f1e5a5c3c907d4e8/sourcecapsule.user.js
-// @updateURL    http://127.0.0.1:18080/sourcecapsule-md.user.js
-// @downloadURL  http://127.0.0.1:18080/sourcecapsule-md.user.js
+// @updateURL    https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/sourcecapsule-md.user.js
+// @downloadURL  https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/sourcecapsule-md.user.js
 // ==/UserScript==
 
 (() => {

@@ -171,7 +171,7 @@ const { chromium } = require('playwright');
       if (longUri.length > 2000 || new URL(longUri).searchParams.get('clipboard') !== 'true') throw Error('Bad long URI');
       return {markdown, filename: successfulFilename, errors, requests, failureMarkdown, sentUri: longUri,
         modes: [...new Set(delivery)]};
-    }, {upstream: fs.readFileSync(process.argv[2], 'utf8'), adapter: fs.readFileSync('sourcecapsule-md.user.js', 'utf8')});
+    }, {upstream: fs.readFileSync(process.argv[2], 'utf8'), adapter: fs.readFileSync(__dirname + '/../sourcecapsule-md.user.js', 'utf8')});
     assert.match(result.markdown, /# Post\n> \[!Post\]/);
     assert.match(result.markdown, /> > \[!quote\]/);
     assert.match(result.markdown, /取得した引用全文/);

@@ -2,40 +2,63 @@
 
 Web ページ（X など）を Markdown にして Obsidian へ送る Tampermonkey ユーザースクリプト集。
 
-| ファイル | 内容 |
-| --- | --- |
-| `loader.user.js` | WebClipper。`_.js` `default.js` `gemini.google.com.js` `lib/*` `entrypoint.js` を束ねる |
-| `sourcecapsule-md.user.js` | [SourceCapsule](https://github.com/wolfgang-aura/SourceCapsule) を使って X の投稿を独自 Markdown で保存（詳細は `sourcecapsule-md.md`） |
-| `xclipper.user.js` | X の投稿に「Obsidian へ送る」ボタンを追加 |
+## インストール
 
-## 使い方（単一ファイル版）
+GitHub の raw URL を開くと Tampermonkey がインストール画面を出す。`@updateURL` が設定されているので、`@version` が上がれば自動更新される。
 
-```sh
-cd lib && pnpm install && pnpm build   # 初回のみ。lib/bundle.js を生成
-cd .. && node build-standalone.cjs      # dist/ に単一ファイル版を生成
+| スクリプト | インストールURL | 内容 |
+| --- | --- | --- |
+| WebClipper | https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/loader.user.js | 任意のページを Alt+Shift+X / 左端ボタンで保存 |
+| SourceCapsule → Custom Markdown | https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/sourcecapsule-md.user.js | [SourceCapsule](https://github.com/wolfgang-aura/SourceCapsule) を使って X の投稿を独自 Markdown で保存（詳細は `sourcecapsule-md.md`） |
+| XClipper → Obsidian One Click | https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/xclipper.user.js | X の投稿に「Obsidian へ送る」ボタンを追加（XClipper 本体が必要） |
+
+- 初回に Obsidian の Vault ID（SourceCapsule 版）と mdrop のトークンを入力する。どちらも Tampermonkey のストレージに保存され、リポジトリには含まれない。
+- mdrop（`127.0.0.1:18081`）が起動していれば、保存はそちらを優先する。
+- 本家 SourceCapsule 単体版は無効にすること。
+
+## 構成
+
+```
+loader.user.js / sourcecapsule-md.user.js / xclipper.user.js   インストール対象（ヘッダーの @require で下記を読み込む）
+core/      helpers.js（共通ヘルパー）, entrypoint.js（ボタン・ショートカット・保存フロー）
+handlers/  サイト別ハンドラ（default / gemini.google.com）と型定義
+lib/       bundle.js（Readability・unified・prettier の esbuild 出力）, mdrop-client.js, sourcecapsule-module.js
+test/      テスト
+scripts/   bump-version.cjs
 ```
 
-`dist/*.user.js` の内容を Tampermonkey に貼り付けてインストールする。更新時は再ビルドして貼り直す。
-ローカルサーバー（miniserve 等）は不要。
+## 開発
 
-- Obsidian の Vault ID は初回に入力し、Tampermonkey のストレージに保存される（リポジトリには含まれない）。
-- mdrop（`127.0.0.1:18081`）が起動していれば、そちらへ保存を優先する。mdrop のトークンも初回入力。
-
-## テスト
+`@require` は GitHub の raw（`main`）を読む。Tampermonkey は **`@version` が変わったときだけ** `@require` を取り直すため、自前の `@require` には `?v=<@version>` を付けてキャッシュを無効化している。モジュールを変更したら、それを読むスクリプトのバージョンを上げる:
 
 ```sh
-node entrypoint.test.cjs
-node mdrop-client.test.cjs
-node underscore.test.cjs
-NODE_PATH=<playwright> node sourcecapsule-md.test.cjs <sourcecapsule.user.js のパス>
+node scripts/bump-version.cjs loader.user.js 2.3.1   # @version と ?v= を同時に更新
 ```
 
-## SourceCapsule 本家の追従
+`node test/headers.test.cjs` が、`@require` の指すファイルの存在と `?v=` と `@version` の一致を検査する。push 後、raw は最大5分ほどキャッシュされる。
 
-`sourcecapsule-md.user.js` は本家 [SourceCapsule](https://github.com/wolfgang-aura/SourceCapsule) の `module.exports`（テスト用API）に依存するため、`@require` はコミットSHAで固定している。更新手順:
+`lib/bundle.js` は依存ライブラリを変えたときだけ再生成してコミットする（約1MB）:
+
+```sh
+cd lib && pnpm install && pnpm build
+```
+
+### テスト
+
+```sh
+node test/entrypoint.test.cjs
+node test/mdrop-client.test.cjs
+node test/helpers.test.cjs
+node test/headers.test.cjs
+NODE_PATH=<playwright> node test/sourcecapsule-md.test.cjs <sourcecapsule.user.js のパス>
+```
+
+### SourceCapsule 本家の追従
+
+`sourcecapsule-md.user.js` は本家の `module.exports`（テスト用API）に依存するため、`@require` はコミットSHAで固定している。
 
 1. 本家 main の最新SHAを取得し、`@require` のSHAを差し替える。
-2. 新しい `sourcecapsule.user.js` を保存し、`node sourcecapsule-md.test.cjs <そのパス>` が PASS することを確認する。
-3. `node build-standalone.cjs` で再生成し、`@version` を上げて貼り直す。
+2. 新しい `sourcecapsule.user.js` を保存し、`test/sourcecapsule-md.test.cjs` が PASS することを確認する。
+3. `node scripts/bump-version.cjs sourcecapsule-md.user.js <新バージョン>` で版を上げる。
 
 現在の固定先: v1.6.15（`3738b57`）。

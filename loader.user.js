@@ -9,18 +9,17 @@
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @connect     127.0.0.1
-// @version     2.2.0
-// @updateURL   http://127.0.0.1:18080/loader.user.js
-// @downloadURL http://127.0.0.1:18080/loader.user.js
+// @version     2.3.0
+// @updateURL   https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/loader.user.js
+// @downloadURL https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/loader.user.js
 // --- Library ---
 // @require     https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js
 // @require     https://unpkg.com/mustache@4.2.0/mustache.js
-// @require     http://127.0.0.1:18080/lib/bundle.js
-// @require     http://127.0.0.1:18080/_.js
-// @require     http://127.0.0.1:18080/default.js
-// @require     http://127.0.0.1:18080/gemini.google.com.js
-// @require     http://127.0.0.1:18080/lib/mdrop-client.js
+// @require     https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/lib/bundle.js?v=2.3.0
+// @require     https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/core/helpers.js?v=2.3.0
+// @require     https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/handlers/default.js?v=2.3.0
+// @require     https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/handlers/gemini.google.com.js?v=2.3.0
+// @require     https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/lib/mdrop-client.js?v=2.3.0
 // --- EntryPoint ---
-// @require     http://127.0.0.1:18080/entrypoint.js
+// @require     https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/core/entrypoint.js?v=2.3.0
 // ==/UserScript==
-// 拡張機能のブラウザ設定からファイルURIへのアクセスを許可すること。

@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         XClipper → Obsidian One Click
 // @namespace    https://x.com/
-// @version      0.1.0
+// @version      0.1.1
 // @description  Add a one-click "Send to Obsidian" button to X posts via XClipper.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
 // @grant        none
-// @updateURL   http://127.0.0.1:18080/xclipper.user.js
-// @downloadURL http://127.0.0.1:18080/xclipper.user.js
+// @updateURL   https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/xclipper.user.js
+// @downloadURL https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/xclipper.user.js
 // @run-at       document-idle
 // ==/UserScript==
 

@@ -1,7 +1,7 @@
 # SourceCapsule → Custom Markdown
 
-1. `node build-standalone.cjs` を実行し、単一ファイル版を `dist/` に生成する（miniserve不要。初回は `lib/bundle.js` のビルドが必要）。
-2. `dist/sourcecapsule-md.user.js` の内容をTampermonkeyに貼り付けてインストールする。更新時は再ビルドして貼り直す。
+1. README の URL から `sourcecapsule-md.user.js` をTampermonkeyにインストールする（自動更新対応）。
+2. 初回の保存時にObsidianのVault IDを入力する。
 3. 単独でインストールしたSourceCapsuleは無効にする。本スクリプトの `@require` が元コードをそのまま実行する。本家の投稿・フローティングボタンはラッパーのCSSで隠し、クリックも遮断する（本家のボタン生成処理自体は継続する）。
 4. 各投稿の「保存」を押すと、その投稿をVaultの `Clippings/x.com` へ送る（Vault IDは初回に入力して保存。変更はメニューの「ObsidianのVault IDを設定」）。タイムライン・返信にも対応し、追加された投稿にもボタンを付ける。記事プレビューは個別ページで開いてから、Tampermonkeyメニューの「現在の投稿・記事をObsidianへ送る」を使う。
 
