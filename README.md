@@ -29,3 +29,13 @@ node mdrop-client.test.cjs
 node underscore.test.cjs
 NODE_PATH=<playwright> node sourcecapsule-md.test.cjs <sourcecapsule.user.js のパス>
 ```
+
+## SourceCapsule 本家の追従
+
+`sourcecapsule-md.user.js` は本家 [SourceCapsule](https://github.com/wolfgang-aura/SourceCapsule) の `module.exports`（テスト用API）に依存するため、`@require` はコミットSHAで固定している。更新手順:
+
+1. 本家 main の最新SHAを取得し、`@require` のSHAを差し替える。
+2. 新しい `sourcecapsule.user.js` を保存し、`node sourcecapsule-md.test.cjs <そのパス>` が PASS することを確認する。
+3. `node build-standalone.cjs` で再生成し、`@version` を上げて貼り直す。
+
+現在の固定先: v1.6.15（`3738b57`）。
