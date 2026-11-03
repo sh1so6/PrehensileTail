@@ -18,7 +18,6 @@
 // @require     http://127.0.0.1:18080/lib/bundle.js
 // @require     http://127.0.0.1:18080/_.js
 // @require     http://127.0.0.1:18080/default.js
-// @require     http://127.0.0.1:18080/x.com.js
 // @require     http://127.0.0.1:18080/gemini.google.com.js
 // @require     http://127.0.0.1:18080/lib/mdrop-client.js
 // --- EntryPoint ---
