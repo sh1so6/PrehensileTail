@@ -1,4 +1,4 @@
-# PatasMonkey 🐒
+# PrehensileTail 🐒
 
 Web ページ（X など）を Markdown にして Obsidian へ送る Tampermonkey ユーザースクリプト集。
 
