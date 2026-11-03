@@ -1,85 +1,64 @@
-(function() {
-    window.ClipperHandlers = window.ClipperHandlers || {};
+(function () {
+  window.ClipperHandlers = window.ClipperHandlers || {};
 
-    window.ClipperHandlers['gemini.google.com'] = async (doc) => {
-        // 先にセレクターを用意しておく
-        const s = {
-            scroller: `div[class="chat-history-scroll-container"] > infinite-scroller`,
-            title:    `span[data-test-id="conversation-title"]`,
-            chat: {
-                _:     `div[class^="conversation-container message"]`,
-                user:  `user-query div[class^="query-text"]`,
-                model: `model-response message-content`,
-            }
-        }
-
-        /** @type {import('./types').Setting} */
-        const siteSetting = {
-            name: doc.$(s.title).innerText,
-        }
-
-        /** @type {import('./types').Schema} */
-        const siteSchema = {
-            title: siteSetting.name,
-            id:    (new URL(doc.URL).pathname.split('/').pop())
-        };
-
-        const elem = {
-            scroller: doc.$(s.scroller)
-        }
-
-        const count = {
-            unchanged: 0,
-            preScrollTop: -1,
-            chatIds: new Set()
-        }
-
-        const result = {
-            chats: []
-        };
-
-        while (true) {
-            const resultBuffer = [];
-            const chats = Object.fromEntries($$(s.chat._)?.map(x => [x.id, x]));
-            
-            for (const id of Object.keys(chats)) {
-                if (count.chatIds.has(id)) {
-                    break;
-                }
-
-                resultBuffer.push(id);
-                count.chatIds.add(id); //処理完了のためリストに追加
-            }
-            if (result.chats.length > 0) {
-                result.chats = resultBuffer.concat(result.chats);
-            }
-            else {
-                result.chats = resultBuffer;
-            }
-
-            // スクロール実施で要素読み込みをトリガーする
-            elem.scroller.scrollBy(0, -1500);
-            await _.sleep(1000);
-
-            // 最上部までスクロールされたかをチェックする
-            if (elem.scroller.scrollTop === 0 || elem.scroller.scrollTop === count.preScrollTop) {
-                count.unchanged++;
-                if (count.unchanged >= 3) { // スクロールを3回実施して変化なければ最上部とみなす
-                    break;
-                }
-            }
-            else {
-                count.unchanged = 0;
-            }
-            count.preScrollTop = elem.scroller.scrollTop;
-
-        }
-        console.dir(result.chats);
-        // 最上位までスクロールするループ
-        // 要素抽出を行いmdに蓄える
-        
-        const siteMarkdown = "await _.convertMarkdown(clone);";
-
-        return { siteSetting, siteSchema, siteMarkdown };
+  // 作成途中: 会話を最上部までスクロールして発言IDを集めるところまで。Markdown 化は未実装
+  window.ClipperHandlers['gemini.google.com'] = async (doc) => {
+    const selectors = {
+      scroller: 'div[class="chat-history-scroll-container"] > infinite-scroller',
+      title: 'span[data-test-id="conversation-title"]',
+      chat: {
+        container: 'div[class^="conversation-container message"]',
+        user: 'user-query div[class^="query-text"]',
+        model: 'model-response message-content',
+      },
     };
+
+    /** @type {import('./types.d.ts').Setting} */
+    const siteSetting = {
+      name: doc.querySelector(selectors.title).innerText,
+    };
+
+    /** @type {import('./types.d.ts').Schema} */
+    const siteSchema = {
+      title: siteSetting.name,
+      id: new URL(doc.URL).pathname.split('/').pop(),
+    };
+
+    const scroller = doc.querySelector(selectors.scroller);
+    const seenIds = new Set();
+    let chatIds = [];
+    let unchanged = 0;
+    let preScrollTop = -1;
+
+    // 最上部までスクロールしながら、未取得の発言IDを先頭側へ蓄える
+    while (true) {
+      const ids = new Set(Array.from(doc.querySelectorAll(selectors.chat.container), (el) => el.id));
+      const newIds = [];
+      for (const id of ids) {
+        if (seenIds.has(id)) break;
+        newIds.push(id);
+        seenIds.add(id);
+      }
+      chatIds = newIds.concat(chatIds);
+
+      // スクロールして要素の読み込みをトリガーする
+      scroller.scrollBy(0, -1500);
+      await _.sleep(1000);
+
+      // 3回続けて位置が変わらなければ最上部とみなす
+      if (scroller.scrollTop === 0 || scroller.scrollTop === preScrollTop) {
+        unchanged++;
+        if (unchanged >= 3) break;
+      } else {
+        unchanged = 0;
+      }
+      preScrollTop = scroller.scrollTop;
+    }
+    console.dir(chatIds);
+
+    // TODO: 要素を抽出して Markdown に変換する。現状はプレースホルダ文字列を返す
+    const siteMarkdown = 'await _.convertMarkdown(clone);';
+
+    return { siteSetting, siteSchema, siteMarkdown };
+  };
 })();
