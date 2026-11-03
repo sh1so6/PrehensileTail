@@ -26,5 +26,6 @@ cd .. && node build-standalone.cjs      # dist/ に単一ファイル版を生�
 ```sh
 node entrypoint.test.cjs
 node mdrop-client.test.cjs
+node underscore.test.cjs
 NODE_PATH=<playwright> node sourcecapsule-md.test.cjs <sourcecapsule.user.js のパス>
 ```
