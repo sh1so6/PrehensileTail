@@ -5,7 +5,7 @@
 3. 単独でインストールしたSourceCapsuleは無効にする。本スクリプトの `@require` が元コードをそのまま実行する。本家の投稿・フローティングボタンはラッパーのCSSで隠し、クリックも遮断する（本家のボタン生成処理自体は継続する）。
 4. 各投稿の「保存」を押すと、その投稿をVaultの `Clippings/x.com` へ送る（Vault IDは初回に入力して保存。変更はメニューの「ObsidianのVault IDを設定」）。タイムライン・返信にも対応し、追加された投稿にもボタンを付ける。記事プレビューは個別ページで開いてから、Tampermonkeyメニューの「現在の投稿・記事をObsidianへ送る」を使う。
 
-Advanced URIプラグインが必要。`mode=new&clipboard=true` を使い、クリップボードへのコピー完了後に開く。ファイル名はタイトルのみ（投稿IDなし）。アイコンは既存の x.com.js と同じ _normal 版URLを使用する。更新時は追加された `GM_setClipboard` 権限を許可する。通常のファイル保存はメニューの「現在の投稿・記事を.mdでダウンロード」から利用できる。
+Advanced URIプラグインが必要。`mode=new&clipboard=true` を使い、クリップボードへのコピー完了後に開く。ファイル名はタイトルのみ（投稿IDなし）。アイコンはX標準の小さい _normal 版アイコンURLを使用する。更新時は追加された `GM_setClipboard` 権限を許可する。通常のファイル保存はメニューの「現在の投稿・記事を.mdでダウンロード」から利用できる。
 
 保存形式は `formatMarkdown(model)` と `renderBlocks(blocks)` で変更する。見本に合わせたYAML＋`# Post` の `[!Post]`＋入れ子の `[!quote]`＋`# Embed` を出力する。投稿タイトルは表示名＋本文先頭30文字。`author` は見本同様に表示名、`userID` は実際のアカウントIDから作ったプロフィールURL。YAMLの文字列・配列はJSON表記で、Obsidianで同じ値として読める。
 

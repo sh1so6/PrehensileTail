@@ -4,7 +4,7 @@ Web ページ（X など）を Markdown にして Obsidian へ送る Tampermonke
 
 | ファイル | 内容 |
 | --- | --- |
-| `loader.user.js` | WebClipper。`_.js` `default.js` `x.com.js` `gemini.google.com.js` `lib/*` `entrypoint.js` を束ねる |
+| `loader.user.js` | WebClipper。`_.js` `default.js` `gemini.google.com.js` `lib/*` `entrypoint.js` を束ねる |
 | `sourcecapsule-md.user.js` | [SourceCapsule](https://github.com/wolfgang-aura/SourceCapsule) を使って X の投稿を独自 Markdown で保存（詳細は `sourcecapsule-md.md`） |
 | `xclipper.user.js` | X の投稿に「Obsidian へ送る」ボタンを追加 |
 
