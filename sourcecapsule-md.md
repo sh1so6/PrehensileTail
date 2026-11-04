@@ -1,11 +1,10 @@
 # SourceCapsule → Custom Markdown
 
 1. README の URL から `sourcecapsule-md.user.js` をTampermonkeyにインストールする（自動更新対応）。
-2. 初回の保存時にObsidianのVault IDを入力する。
+2. mdrop（`127.0.0.1:18081`）を起動しておく。初回の保存時にmdropのトークンを入力する（変更はメニューの「🔑 mdropトークン設定」）。
 3. 単独でインストールしたSourceCapsuleは無効にする。本スクリプトの `@require` が元コードをそのまま実行する。本家の投稿・フローティングボタンはラッパーのCSSで隠し、クリックも遮断する（本家のボタン生成処理自体は継続する）。
-4. 各投稿の「保存」を押すと、その投稿をVaultの `Clippings/x.com` へ送る（Vault IDは初回に入力して保存。変更はメニューの「ObsidianのVault IDを設定」）。タイムライン・返信にも対応し、追加された投稿にもボタンを付ける。記事プレビューは個別ページで開いてから、Tampermonkeyメニューの「現在の投稿・記事をObsidianへ送る」を使う。
+4. 各投稿の「保存」を押すと、その投稿をmdrop経由で `Clippings/x.com` へ保存する。mdropが起動していない場合はエラーを表示する。タイムライン・返信にも対応し、追加された投稿にもボタンを付ける。記事プレビューは個別ページで開いてから、Tampermonkeyメニューの「現在の投稿・記事をmdropへ保存」を使う。
 
-Advanced URIプラグインが必要。`mode=new&clipboard=true` を使い、クリップボードへのコピー完了後に開く。ファイル名はタイトルのみ（投稿IDなし）。アイコンはX標準の小さい _normal 版アイコンURLを使用する。更新時は追加された `GM_setClipboard` 権限を許可する。通常のファイル保存はメニューの「現在の投稿・記事を.mdでダウンロード」から利用できる。
 
 保存形式は `formatMarkdown(model)` と `renderBlocks(blocks)` で変更する。見本に合わせたYAML＋`# Post` の `[!Post]`＋入れ子の `[!quote]`＋`# Embed` を出力する。投稿タイトルは表示名＋本文先頭30文字。`author` は見本同様に表示名、`userID` は実際のアカウントIDから作ったプロフィールURL。YAMLの文字列・配列はJSON表記で、Obsidianで同じ値として読める。
 
@@ -17,5 +16,5 @@ Advanced URIプラグインが必要。`mode=new&clipboard=true` を使い、ク
 
 元の `runExport` 全体を呼ぶ方式ではないため、自動スクロール・動画や画像のオフライン保存・完全性確認ダイアログは実行しない。syndicationが返さない長文は本家の受信済みデータによる復元に依存する。返信先取得は常に有効で、本家の設定メニューとは独立している。
 
-検証: `node sourcecapsule-md.test.cjs <元スクリプトのパス>`。PlaywrightとEdgeを使用し、実DOMでHTML変換・引用の入れ子・画像URL・YAML・保存を確認する。X実ページでの抽出はこのテストの対象外。
+検証: `node test/sourcecapsule-md.test.cjs <元スクリプトのパス>`。PlaywrightとEdgeを使用し、実DOMでHTML変換・引用の入れ子・画像URL・YAML・保存を確認する。X実ページでの抽出はこのテストの対象外。
 

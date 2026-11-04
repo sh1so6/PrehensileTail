@@ -8,11 +8,33 @@ const { chromium } = require('playwright');
     const page = await browser.newPage();
     await page.route('https://x.com/**', route => route.fulfill({ body: '<html><body></body></html>', contentType: 'text/html' }));
     await page.goto('https://x.com/tester/status/123');
-    const result = await page.evaluate(async ({ upstream, adapter }) => {
+    const result = await page.evaluate(async ({ upstream, adapter, mdropClient }) => {
       const requests = [];
-      window.GM_getValue = (key, fallback) => key === 'obsidian.vault' ? 'test-vault' : fallback;
+      const clips = []; // mdrop /clip へ POST された内容
+      let mdropUp = true;
+      window.GM_getValue = (key, fallback) => key === 'mdrop.token' ? 'test-token' : fallback;
       window.GM_setValue = () => {};
+      // 本番では @require で先に読み込まれる mdrop クライアントを注入する
+      new Function(mdropClient)();
+      let syndication;
+      // mdrop (127.0.0.1:18081) と syndication API を1つの GM_xmlhttpRequest で再現する
       window.GM_xmlhttpRequest = request => {
+        if (request.url === 'http://127.0.0.1:18081/health') {
+          if (mdropUp) request.onload({status: 200, responseText: 'ok'}); else request.onerror(new Error('down'));
+          return;
+        }
+        if (request.url === 'http://127.0.0.1:18081/clip') {
+          if (!mdropUp) { request.onerror(new Error('down')); return; }
+          if (request.method !== 'POST') throw Error('Wrong clip method');
+          clips.push({token: request.headers['X-Mdrop-Token'], body: JSON.parse(request.data)});
+          const report = {file: `${clips.at(-1).body.path}/${clips.at(-1).body.name}.md`, images_found: 0,
+            images_saved: 0, images_reused: 0, failed: [], skipped: [], changed: true, elapsed_ms: 1};
+          request.onload({status: 200, response: report, responseText: JSON.stringify(report)});
+          return;
+        }
+        syndication(request);
+      };
+      syndication = request => {
         const id = new URL(request.url).searchParams.get('id');
         requests.push(id);
         const quote = { id_str: '789', text: '取得した引用全文', user: {name: '引用元', screen_name: 'quoted'} };
@@ -45,38 +67,26 @@ const { chromium } = require('playwright');
         if (target !== null || options.includeThread !== false) throw Error('Wrong extraction scope');
         return model;
       };
-      let command, downloadCommand, saved, filename, sentUri;
-      const delivery = [];
+      let command, downloadCommand, tokenCommand, downloaded, filename;
+      const anchorClicks = []; // mdrop 保存では <a> クリック（obsidian:// 起動・ダウンロード）が起きてはならない
       const errors = [];
-      URL.createObjectURL = blob => { saved = blob; return 'blob:test'; };
-      window.GM_setClipboard = (text, type, done) => {
-        if (type !== 'text') throw Error('Wrong clipboard format');
-        saved = new Blob([text]);
-        delivery.push('clipboard');
-        setTimeout(done, 10);
-      };
+      URL.createObjectURL = blob => { downloaded = blob; return 'blob:test'; };
       HTMLAnchorElement.prototype.click = function () {
-        if (this.protocol === 'obsidian:') {
-          sentUri = this.href;
-          const params = new URL(sentUri).searchParams;
-          if (params.has('data')) {
-            // Short notes travel inside the URI and must not touch the clipboard.
-            saved = new Blob([params.get('data')]);
-            delivery.push('data');
-          } else {
-            if (delivery.at(-1) !== 'clipboard') throw Error('URI before clipboard');
-            delivery.push('uri');
-          }
-          filename = params.get('filepath');
-        } else { filename = this.download; }
+        anchorClicks.push(this.href);
+        filename = this.download;
       };
       new Function('module', 'GM_registerMenuCommand', 'alert', adapter)(
         {exports: api}, (label, fn) => {
-          if (label.includes('Obsidianへ送る')) command = fn;
+          if (label.includes('mdropへ保存')) command = fn;
           else if (label.includes('ダウンロード')) downloadCommand = fn;
+          else if (label.includes('mdropトークン設定')) tokenCommand = fn;
+          else throw Error('Unexpected menu: ' + label);
         }, message => errors.push(message));
+      if (!command || !downloadCommand || !tokenCommand) throw Error('Missing menu command');
       await command();
-      const markdown = await saved.text();
+      if (clips.length !== 1) throw Error('Menu save did not POST to mdrop');
+      const markdown = clips[0].body.content;
+      const menuClip = clips[0];
       history.replaceState({}, '', '/home');
       await command();
       const tick = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -101,7 +111,8 @@ const { chromium } = require('playwright');
       };
       post.querySelector('.scmd-save').click();
       for (let i = 0; i < 100 && post.querySelector('.scmd-save').disabled; i++) await tick();
-      if (captured !== 1 || !filename.endsWith('.md') || /-456\.md$/.test(filename)) throw Error('Timeline save failed');
+      if (captured !== 1 || clips.length !== 2 || clips.at(-1).body.path !== 'Clippings/x.com' || /-456$/.test(clips.at(-1).body.name)) throw Error('Timeline save failed');
+      if (clips.at(-1).token !== 'test-token') throw Error('Token header missing');
       if (post.querySelector('.scmd-save').textContent !== '✓ 完了') throw Error('Success label missing');
       const otherPost = document.createElement('article');
       otherPost.dataset.testid = 'tweet';
@@ -118,17 +129,18 @@ const { chromium } = require('playwright');
       post.querySelector('.scmd-save').click();
       if (captured !== 1 || errors.length !== 2) throw Error('Preview guard failed');
       if (post.querySelector('.scmd-save').textContent !== '保存') throw Error('Failure marked saved');
-      const successfulFilename = filename;
+      const timelineClip = clips.at(-1);
       history.replaceState({}, '', '/tester/status/123');
       api.buildModelForPost = () => model;
       // Failed API responses must preserve the DOM capture and leave an explicit notice.
       api.recoverMissingQuoteSourcesViaSyndication = async () => {};
-      window.GM_xmlhttpRequest = request => request.onload({status: 200, responseText: '{}'});
+      syndication = request => request.onload({status: 200, responseText: '{}'});
       await command();
-      const failureMarkdown = await saved.text();
-      const sentBeforeDownload = delivery.length;
+      const failureMarkdown = clips.at(-1).body.content;
+      const sentBeforeDownload = clips.length;
       await downloadCommand();
-      if (delivery.length !== sentBeforeDownload || !filename.endsWith('.md')) throw Error('Download fallback failed');
+      if (clips.length !== sentBeforeDownload || !filename.endsWith('.md') || anchorClicks.length !== 1) throw Error('Download menu failed');
+      if (!(await downloaded.text()).includes('追加取得に失敗')) throw Error('Download content wrong');
       history.replaceState({}, '', '/i/article/123');
       api.detectPageType = () => 'article';
       let articleCaptured = 0;
@@ -157,21 +169,36 @@ const { chromium } = require('playwright');
         const errorsBefore = errors.length;
         await command();
         if (errors.length !== errorsBefore) throw Error('Unicode title failed: ' + errors.at(-1));
-        const filepath = new URL(sentUri).searchParams.get('filepath');
-        if (filepath !== `Clippings/x.com/${expectedTitle}.md`) throw Error('Unicode filename changed: ' + filepath);
+        const clip = clips.at(-1).body;
+        if (clip.path !== 'Clippings/x.com' || clip.name !== expectedTitle) throw Error('Unicode filename changed: ' + clip.name);
       }
-      // Long note: clipboard + clipboard=true URI, kept under Chromium's 2048-char external URL cap.
+      // 長文でも本文は欠けずに mdrop へ渡る
       api.buildModelForArticle = () => ({...model, type: 'article', heading: '長文',
         author: {name: '名前', handle: '@tester'}, blocks: [{kind: 'paragraph', html: 'あ'.repeat(1000)}]});
-      const before = delivery.length;
       await command();
-      if (delivery.slice(before).join() !== 'clipboard,uri') throw Error('Long note not sent via clipboard');
-      if (!(await saved.text()).includes('あ'.repeat(1000))) throw Error('Long note body lost');
-      const longUri = sentUri;
-      if (longUri.length > 2000 || new URL(longUri).searchParams.get('clipboard') !== 'true') throw Error('Bad long URI');
-      return {markdown, filename: successfulFilename, errors, requests, failureMarkdown, sentUri: longUri,
-        modes: [...new Set(delivery)]};
-    }, {upstream: fs.readFileSync(process.argv[2], 'utf8'), adapter: fs.readFileSync(__dirname + '/../sourcecapsule-md.user.js', 'utf8')});
+      if (!clips.at(-1).body.content.includes('あ'.repeat(1000))) throw Error('Long note body lost');
+      // mdrop 停止中: alert を出して保存せず、.md ダウンロードにも obsidian:// 起動にも流れない
+      const errorCountBeforeDown = errors.length;
+      const clipsBeforeDown = clips.length;
+      const clicksBeforeDown = anchorClicks.length;
+      mdropUp = false;
+      await command();
+      const downMenuErrors = errors.slice(errorCountBeforeDown);
+      history.replaceState({}, '', '/home');
+      api.timelineArticlePreviewReason = () => '';
+      api.buildModelForPost = () => model;
+      post.querySelector('.scmd-save').click();
+      for (let i = 0; i < 100 && post.querySelector('.scmd-save').disabled; i++) await tick();
+      if (post.querySelector('.scmd-save').textContent !== '保存') throw Error('Button not restored after mdrop failure');
+      const downButtonErrors = errors.slice(errorCountBeforeDown + downMenuErrors.length);
+      if (clips.length !== clipsBeforeDown || anchorClicks.length !== clicksBeforeDown) throw Error('Fallback happened while mdrop down');
+      mdropUp = true;
+      return {markdown, clipName: timelineClip.body.name, clipPath: timelineClip.body.path, menuClip,
+        errors: errors.slice(0, errorCountBeforeDown), requests, failureMarkdown,
+        downMenuErrors, downButtonErrors, buttonLabel: post.querySelector('.scmd-save').textContent,
+        buttonTitle: articleButton.title};
+    }, {upstream: fs.readFileSync(process.argv[2], 'utf8'), adapter: fs.readFileSync(__dirname + '/../sourcecapsule-md.user.js', 'utf8'),
+      mdropClient: fs.readFileSync(__dirname + '/../lib/mdrop-client.js', 'utf8')});
     assert.match(result.markdown, /# Post\n> \[!Post\]/);
     assert.match(result.markdown, /> > \[!quote\]/);
     assert.match(result.markdown, /取得した引用全文/);
@@ -190,20 +217,23 @@ const { chromium } = require('playwright');
     assert.doesNotMatch(result.markdown, /base64|feature:|thumbnail:|## Main Post/);
     const titleLine = result.markdown.split('\n').find(line => line.startsWith('title: '));
     assert.ok(JSON.parse(titleLine.slice(7)).includes('本名「引用」\n次の行'));
-    assert.ok(result.filename.endsWith('.md'));
-    assert.doesNotMatch(result.filename, /-(123|456)\.md$/);
+    assert.ok(result.clipName.length > 0);
+    assert.doesNotMatch(result.clipName, /-(123|456)$/);
+    assert.equal(result.clipPath, 'Clippings/x.com');
+    assert.equal(result.menuClip.token, 'test-token');
+    assert.equal(result.menuClip.body.path, 'Clippings/x.com');
+    assert.equal(result.menuClip.body.source, 'https://x.com/tester/status/123');
+    assert.equal(result.menuClip.body.name, '名前_作者「本名「引用」_次の行 & リンク」');
+    assert.equal(result.buttonTitle, 'mdropへ保存済み（クリックで再保存）');
     assert.match(result.markdown, /avatar_normal\.jpg/);
     assert.doesNotMatch(result.markdown, /avatar_400x400/);
     assert.equal(result.errors.length, 2);
-    const uri = new URL(result.sentUri);
-    assert.equal(uri.protocol, 'obsidian:');
-    assert.equal(uri.hostname, 'adv-uri');
-    assert.equal(uri.searchParams.get('vault'), 'test-vault');
-    assert.ok(uri.searchParams.get('filepath').startsWith('Clippings/x.com/'));
-    assert.equal(uri.searchParams.get('mode'), 'new');
-    assert.equal(uri.searchParams.get('clipboard'), 'true');
-    assert.ok(result.modes.includes('data') && result.modes.includes('uri'), 'Both delivery modes must be exercised');
-    console.log('PASS: Advanced URI (data= / clipboard), clipboard before send, download fallback, enrichment and post buttons');
+    for (const messages of [result.downMenuErrors, result.downButtonErrors]) {
+      assert.equal(messages.length, 1);
+      assert.match(messages[0], /mdropに接続できませんでした/);
+    }
+    assert.equal(result.buttonLabel, '保存');
+    console.log('PASS: mdrop /clip delivery (menu and post buttons), token header, mdrop-down alert without fallback, download menu, enrichment');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
 

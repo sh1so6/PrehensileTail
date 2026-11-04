@@ -1,6 +1,6 @@
 # PrehensileTail 🐒
 
-Web ページ（X など）を Markdown にして Obsidian へ送る Tampermonkey ユーザースクリプト集。
+Web ページ（X など）を Markdown にして mdrop（ローカルの保存サーバー）へ送る Tampermonkey ユーザースクリプト集。
 
 ## インストール
 
@@ -10,16 +10,15 @@ GitHub の raw URL を開くと Tampermonkey がインストール画面を出�
 | --- | --- | --- |
 | WebClipper | https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/loader.user.js | 任意のページを Alt+Shift+X / 左端ボタンで保存 |
 | SourceCapsule → Custom Markdown | https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/sourcecapsule-md.user.js | [SourceCapsule](https://github.com/wolfgang-aura/SourceCapsule) を使って X の投稿を独自 Markdown で保存（詳細は `sourcecapsule-md.md`） |
-| XClipper → Obsidian One Click | https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/xclipper.user.js | X の投稿に「Obsidian へ送る」ボタンを追加（XClipper 本体が必要） |
 
-- 初回に Obsidian の Vault ID（SourceCapsule 版）と mdrop のトークンを入力する。どちらも Tampermonkey のストレージに保存され、リポジトリには含まれない。
-- mdrop（`127.0.0.1:18081`）が起動していれば、保存はそちらを優先する。
+- 初回に mdrop のトークンを入力する。Tampermonkey のストレージに保存され、リポジトリには含まれない。
+- 保存は mdrop（`127.0.0.1:18081`）経由のみ。起動していない場合はエラーを表示する。
 - 本家 SourceCapsule 単体版は無効にすること。
 
 ## 構成
 
 ```
-loader.user.js / sourcecapsule-md.user.js / xclipper.user.js   インストール対象（ヘッダーの @require で下記を読み込む）
+loader.user.js / sourcecapsule-md.user.js   インストール対象（ヘッダーの @require で下記を読み込む）
 core/      helpers.js（共通ヘルパー）, entrypoint.js（ボタン・ショートカット・保存フロー）
 handlers/  サイト別ハンドラ（default / gemini.google.com）と型定義
 lib/       bundle.js（Readability・unified・prettier の esbuild 出力）, mdrop-client.js, sourcecapsule-module.js

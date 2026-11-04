@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SourceCapsule → Custom Markdown
 // @namespace    local.sourcecapsule-md
-// @version      0.6.0
+// @version      0.7.0
 // @description  Reuse SourceCapsule extraction and save Markdown with custom frontmatter.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -11,7 +11,6 @@
 // @grant        unsafeWindow
 // @grant        GM_registerMenuCommand
 // @grant        GM_unregisterMenuCommand
-// @grant        GM_setClipboard
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @connect      pbs.twimg.com
@@ -25,8 +24,8 @@
 // @connect      sourcecapsule-share.wolfgang-aura.workers.dev
 // @run-at       document-start
 // @noframes
-// @require      https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/lib/mdrop-client.js?v=0.6.0
-// @require      https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/lib/sourcecapsule-module.js?v=0.6.0
+// @require      https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/lib/mdrop-client.js?v=0.7.0
+// @require      https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/lib/sourcecapsule-module.js?v=0.7.0
 // @require      https://raw.githubusercontent.com/wolfgang-aura/SourceCapsule/3738b57c43ab7eef898086a9f1e5a5c3c907d4e8/sourcecapsule.user.js
 // @updateURL    https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/sourcecapsule-md.user.js
 // @downloadURL  https://raw.githubusercontent.com/sh1so6/PrehensileTail/main/sourcecapsule-md.user.js
@@ -45,7 +44,7 @@
   // 定数
   // ---------------------------------------------------------------------------
   const LOG_PREFIX = '[SourceCapsule MD]';
-  const CLIP_DIR = 'Clippings/x.com'; // Vault 内の保存先フォルダ
+  const CLIP_DIR = 'Clippings/x.com'; // mdrop の保存先フォルダ（Vault 内）
   const TITLE_PREVIEW_CHARS = 30; // 見出しの無い投稿で、本文から取るタイトルの文字数（コードポイント）
   const FILENAME_MAX_CHARS = 100; // ファイル名（拡張子除く）の最大文字数（コードポイント）
   const FALLBACK_TITLE = 'X post'; // サニタイズ後のファイル名が空になった場合
@@ -55,17 +54,6 @@
   const TRUNCATED_NOTICE = '※ 本文の一部が省略されています。';
   const FETCH_FAILED_NOTICE =
     '※ 引用元・返信先の追加取得に失敗した投稿があります。取得済みの内容のみ保存しています。';
-
-  // Obsidian 送信（Advanced URI）
-  const OBSIDIAN_URI_MAX = 2000; // Chromium(Windows) は 2048 文字超の外部プロトコル URL を捨てるため余裕を見る
-  const DATA_PARAM_OVERHEAD = '&data='.length;
-  const CLIPBOARD_COPY_TIMEOUT_MS = 5000;
-  const CLIPBOARD_WIPE_DELAY = 3000; // フォーカス復帰後、Obsidian の読み取り完了を待つ猶予
-  const CLIPBOARD_WIPE_MIN_AGE = 10_000; // 送信から最低この時間は消さない（確認ダイアログ＋コールドスタート対策）
-  const CLIPBOARD_WIPE_FALLBACK = 60_000; // 一度も離脱しなかった（起動キャンセル等）場合
-
-  // Obsidian の Vault ID は公開リポジトリに載せず、Tampermonkey のストレージに保存する。
-  const VAULT_KEY = 'obsidian.vault';
 
   // UI
   const TWEET_SELECTOR = 'article[data-testid="tweet"]';
@@ -77,7 +65,7 @@
   const SAVE_OWNER_SELECTOR = `${TWEET_SELECTOR}, ${ARTICLE_SELECTOR}`;
   const UPSTREAM_CONTROL_SELECTOR = '.xa-ctl, .xa-ctl-menu';
   const BUTTON_LABEL = '保存';
-  const BUTTON_TITLE = 'この投稿を独自MarkdownでObsidianへ送る';
+  const BUTTON_TITLE = 'この投稿を独自Markdownでmdropへ保存';
 
   // ---------------------------------------------------------------------------
   // Markdown 生成（出力形式は Playwright テストが検証するため変更しないこと）
@@ -320,128 +308,9 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Obsidian への送信
-  // ---------------------------------------------------------------------------
-  function getVault(forcePrompt = false) {
-    let vault = forcePrompt ? '' : String(GM_getValue(VAULT_KEY, '') ?? '').trim();
-    if (!vault) {
-      vault = String(prompt('ObsidianのVault ID（またはVault名）を入力してください') ?? '').trim();
-      if (vault) GM_setValue(VAULT_KEY, vault);
-    }
-    return vault;
-  }
-
-  // GM_setClipboard の完了通知（コールバック／Promise どちらの実装でも）を待つ
-  function copyToClipboard(text) {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error('クリップボードへのコピーが完了しませんでした。')),
-        CLIPBOARD_COPY_TIMEOUT_MS);
-      const done = () => { clearTimeout(timer); resolve(); };
-      try {
-        GM_setClipboard(text, 'text', done)?.then?.(done, reject);
-      } catch (error) {
-        clearTimeout(timer);
-        reject(error);
-      }
-    });
-  }
-
-  let cancelClipboardWipe = null;
-
-  /**
-   * Advanced URI 経由で Obsidian に新規ノートを作成する（クリップボード汚染対策つき）。
-   * - 短い本文: data= に直接載せ、クリップボードを使わない。
-   * - 長い本文: URL 長の上限を超えるためクリップボード経由で送り、
-   *   ブラウザへフォーカスが戻った時点で消去する。
-   */
-  async function sendToObsidian({ vault, filepath, content, open }) {
-    cancelClipboardWipe?.();
-    const base = `obsidian://adv-uri?vault=${encodeURIComponent(vault)}` +
-      `&filepath=${encodeURIComponent(filepath.toWellFormed())}&mode=new`;
-    const body = content.toWellFormed();
-    // encodeURIComponent は 1 文字あたり最小 1 文字なので、長文は符号化せずに判定できる
-    if (base.length + DATA_PARAM_OVERHEAD + body.length <= OBSIDIAN_URI_MAX) {
-      const direct = `${base}&data=${encodeURIComponent(body)}`;
-      if (direct.length <= OBSIDIAN_URI_MAX) {
-        open(direct);
-        return 'uri';
-      }
-    }
-    await copyToClipboard(content);
-    open(`${base}&clipboard=true`);
-    cancelClipboardWipe = scheduleClipboardWipe(content);
-    return 'clipboard';
-  }
-
-  /**
-   * 送信したクリップボード内容を、Obsidian へフォーカスが移って戻った後に消す。
-   * 戻り値は取り消し関数（タイマー・リスナーをすべて解除する）。
-   */
-  function scheduleClipboardWipe(content) {
-    const normalize = text => text.replace(/\r\n/g, '\n');
-    const expected = normalize(content);
-    const sentAt = Date.now();
-    let left = false; // 一度でもブラウザから離れたか
-    let done = false;
-    let pending = null;
-    let fallback = null;
-
-    const cancel = () => {
-      done = true;
-      clearTimeout(pending);
-      clearTimeout(fallback);
-      window.removeEventListener('blur', onBlur);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('copy', cancel, true);
-      document.removeEventListener('cut', cancel, true);
-      if (cancelClipboardWipe === cancel) cancelClipboardWipe = null;
-    };
-    const stillOurs = async () => {
-      try {
-        const { state } = await navigator.permissions.query({ name: 'clipboard-read' });
-        if (state !== 'granted') return true; // 照合不可（プロンプトは出さない）→ 消去
-        return normalize(await navigator.clipboard.readText()) === expected;
-      } catch {
-        return true;
-      }
-    };
-    const wipe = async () => {
-      if (done) return;
-      cancel();
-      if (!(await stillOurs())) return;
-      try {
-        await navigator.clipboard.writeText('');
-      } catch {
-        try { GM_setClipboard('', 'text'); } catch { /* 消去できなければ諦める */ }
-      }
-    };
-    const armWipe = () => {
-      clearTimeout(pending);
-      // 確認ダイアログ閉鎖直後の一時的な復帰を除外するため、猶予後もフォーカス保持なら消去
-      const delay = Math.max(CLIPBOARD_WIPE_DELAY, sentAt + CLIPBOARD_WIPE_MIN_AGE - Date.now());
-      // フォーカスを失っていたら次の focus で再アームする
-      pending = setTimeout(() => { if (document.hasFocus()) wipe(); }, delay);
-    };
-    const onBlur = () => { left = true; clearTimeout(pending); };
-    const onFocus = () => { if (left) armWipe(); };
-
-    fallback = setTimeout(() => {
-      left = true;
-      if (document.hasFocus()) armWipe();
-    }, CLIPBOARD_WIPE_FALLBACK);
-    window.addEventListener('blur', onBlur);
-    window.addEventListener('focus', onFocus);
-    // ページ内で別の内容をコピーしたら、もう自分のデータではないので消さない
-    document.addEventListener('copy', cancel, true);
-    document.addEventListener('cut', cancel, true);
-    return cancel;
-  }
-
-  // ---------------------------------------------------------------------------
   // 保存処理
   // ---------------------------------------------------------------------------
-  // 一時的な <a> を作ってクリックする（obsidian:// の起動と Blob ダウンロード共用）
+  // 一時的な <a> を作ってクリックする（Blob ダウンロード用）
   function clickLink(href, download = null) {
     const link = document.createElement('a');
     link.href = href;
@@ -459,23 +328,15 @@
     }
   }
 
-  // mdrop が起動していればそちらへ保存（画像もローカル化）。未起動なら Advanced URI へ。
-  async function sendMarkdownToObsidian(markdown, title) {
-    const report = await globalThis.MdropClient?.trySend({
+  // mdrop へ保存する（画像もローカル化される）。未起動などで送れなければエラーにする。
+  async function sendMarkdownToMdrop(markdown, title) {
+    if (!globalThis.MdropClient) {
+      throw new Error('mdrop クライアント(lib/mdrop-client.js)を読み込めませんでした。@requireのURLを確認してください。');
+    }
+    const report = await globalThis.MdropClient.trySend({
       path: CLIP_DIR, name: title, content: markdown, source: location.href,
     });
-    if (report) return;
-    // Vault は初回に入力して保存する。
-    const vault = getVault();
-    if (!vault) {
-      throw new Error('Vault IDが未設定です。メニューの「ObsidianのVault IDを設定」から入力してください。');
-    }
-    await sendToObsidian({
-      vault,
-      filepath: `${CLIP_DIR}/${title}.md`,
-      content: markdown,
-      open: uri => clickLink(uri),
-    });
+    if (!report) throw new Error('mdropに接続できませんでした。mdropが起動していること、トークンを入力済みであることを確認してもう一度実行してください。');
   }
 
   // OS のファイル名に使えない文字を置換し、末尾の . と空白を除く
@@ -519,12 +380,12 @@
   function setButtonResult(button, delivered) {
     button.disabled = false;
     button.textContent = delivered ? '✓ 完了' : BUTTON_LABEL;
-    button.title = delivered ? 'Obsidianへ送信済み（クリックで再送）' : BUTTON_TITLE;
+    button.title = delivered ? 'mdropへ保存済み（クリックで再保存）' : BUTTON_TITLE;
     button.setAttribute('aria-label', button.title);
   }
 
   let busy = false;
-  async function saveMarkdown(targetTweet = null, trigger = null, destination = 'obsidian') {
+  async function saveMarkdown(targetTweet = null, trigger = null, destination = 'mdrop') {
     if (busy) return;
     busy = true;
     let delivered = false;
@@ -534,7 +395,7 @@
       await enrichContext(model);
       const markdown = formatMarkdown(model);
       const title = fileTitle(model);
-      if (destination === 'obsidian') await sendMarkdownToObsidian(markdown, title);
+      if (destination === 'mdrop') await sendMarkdownToMdrop(markdown, title);
       else downloadMarkdown(markdown, title);
       delivered = true;
     } catch (error) {
@@ -546,8 +407,8 @@
     }
   }
 
-  GM_registerMenuCommand('現在の投稿・記事をObsidianへ送る', () => saveMarkdown());
-  GM_registerMenuCommand('ObsidianのVault IDを設定', () => getVault(true));
+  GM_registerMenuCommand('現在の投稿・記事をmdropへ保存', () => saveMarkdown());
+  GM_registerMenuCommand('🔑 mdropトークン設定', () => globalThis.MdropClient?.setToken());
   GM_registerMenuCommand('現在の投稿・記事を.mdでダウンロード', () => saveMarkdown(null, null, 'download'));
 
   // ---------------------------------------------------------------------------
